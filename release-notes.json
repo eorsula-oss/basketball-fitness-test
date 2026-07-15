@@ -1,0 +1,9 @@
+{
+  "version": 15,
+  "title": "Neu in Basketball Fitness",
+  "changes": [
+    "Fortschritt eines Kindes wird jetzt lokal und in der globalen Rangliste zuverlässig auf 0 gesetzt.",
+    "Das Zurücksetzen ist durch eine Sicherheitsabfrage und den PIN 2009 geschützt.",
+    "Profile, Gruppen, Fotos und der Fortschritt anderer Kinder bleiben dabei unverändert."
+  ]
+}
