@@ -32,7 +32,7 @@ render=function(){
 
 async function removeGlobalProfile(n){
   const cfg=window.BASKETBALL_BACKUP_CONFIG,m=state.profileMeta?.[n];
-  if(!cfg||!m)return;
+  if(!cfg||!m||cfg.testMode)return;
   try{
     await fetch(`${cfg.url}/rest/v1/rpc/delete_fitness_ranking`,{
       method:'POST',
@@ -279,3 +279,253 @@ if(recoveryFromHash){
 
 store();
 render();
+
+// Test-only profile cloud. It uses separate RPCs/tables and never touches production backups or rankings.
+const encodeRecoveryBytes=bytes=>btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+const decodeRecoveryBytes=value=>Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/')+'='.repeat((4-value.length%4)%4)),c=>c.charCodeAt(0));
+const recoveryHeaders=()=>{
+  const cfg=window.BASKETBALL_BACKUP_CONFIG;
+  return {apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,'Content-Type':'application/json'};
+};
+
+function createCloudRecoveryCode(n){
+  const meta=ensureProfileMeta(n);
+  return `BFP2.${encodeUtf8(JSON.stringify({v:2,id:meta.id,token:meta.token}))}`;
+}
+
+function parseCloudRecoveryCode(raw){
+  const code=raw.trim();
+  if(!code.startsWith('BFP2.')||code.length>1000)throw new Error('prefix');
+  const payload=JSON.parse(decodeUtf8(code.slice(5)));
+  if(payload.v!==2||typeof payload.id!=='string'||!/^[0-9a-f-]{36}$/i.test(payload.id))throw new Error('id');
+  if(typeof payload.token!=='string'||payload.token.length<20||payload.token.length>100)throw new Error('token');
+  return payload;
+}
+
+async function encryptPersonalProfile(n){
+  const meta=ensureProfileMeta(n),iv=crypto.getRandomValues(new Uint8Array(12));
+  const payload={
+    v:2,
+    id:meta.id,
+    name:n,
+    group:state.groups[n]||'Sonstige',
+    done:Object.entries(state.done[n]||{}).filter(([,checked])=>checked).map(([key])=>key),
+    updated:new Date().toISOString()
+  };
+  const key=await crypto.subtle.importKey('raw',decodeRecoveryBytes(meta.token),'AES-GCM',false,['encrypt']);
+  const ciphertext=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(payload))));
+  return {meta,ciphertext:encodeRecoveryBytes(ciphertext),iv:encodeRecoveryBytes(iv)};
+}
+
+async function decryptPersonalProfile(row,token){
+  const key=await crypto.subtle.importKey('raw',decodeRecoveryBytes(token),'AES-GCM',false,['decrypt']);
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:decodeRecoveryBytes(row.iv)},key,decodeRecoveryBytes(row.ciphertext));
+  const payload=JSON.parse(new TextDecoder().decode(plain));
+  if(payload.v!==2||!validProfileName(payload.name)||!groupOrder.includes(payload.group))throw new Error('payload');
+  if(typeof payload.id!=='string'||!/^[0-9a-f-]{36}$/i.test(payload.id))throw new Error('id');
+  if(!Array.isArray(payload.done)||payload.done.length>exercise.length*46||payload.done.some(key=>!validDoneKey(key)))throw new Error('done');
+  return payload;
+}
+
+async function syncPersonalProfileToTestCloud(n,{showStatus=false}={}){
+  const cfg=window.BASKETBALL_BACKUP_CONFIG;
+  if(!cfg?.testProfileCloud)throw new Error('config');
+  if(showStatus&&$('#personalProfileBackupStatus'))$('#personalProfileBackupStatus').textContent=`${n} wird verschlüsselt in der Test-Cloud gesichert …`;
+  const encrypted=await encryptPersonalProfile(n);
+  const response=await fetch(`${cfg.url}/rest/v1/rpc/upsert_test_profile_backup`,{
+    method:'POST',
+    headers:recoveryHeaders(),
+    body:JSON.stringify({
+      p_profile_id:encrypted.meta.id,
+      p_owner_token:encrypted.meta.token,
+      p_ciphertext:encrypted.ciphertext,
+      p_iv:encrypted.iv
+    })
+  });
+  if(!response.ok)throw new Error(`sync-${response.status}`);
+  if(showStatus&&$('#personalProfileBackupStatus'))$('#personalProfileBackupStatus').textContent=`${n} ist aktuell in der getrennten Test-Cloud gesichert.`;
+  return true;
+}
+
+let personalCloudTimer;
+function schedulePersonalCloudSync(){
+  clearTimeout(personalCloudTimer);
+  personalCloudTimer=setTimeout(()=>{
+    if(!window.BASKETBALL_BACKUP_CONFIG?.testProfileCloud)return;
+    Promise.allSettled(state.profiles.map(n=>syncPersonalProfileToTestCloud(n)));
+  },700);
+}
+
+const recoveryStoreBase=store;
+store=function(){
+  recoveryStoreBase();
+  schedulePersonalCloudSync();
+};
+
+function recoveryCredentials(code){
+  if(code.trim().startsWith('BFP2.'))return parseCloudRecoveryCode(code);
+  const legacy=parsePersonalRecoveryCode(code);
+  return {v:1,id:legacy.id,token:legacy.token};
+}
+
+async function fetchLatestPersonalProfile(code){
+  const credentials=recoveryCredentials(code),cfg=window.BASKETBALL_BACKUP_CONFIG;
+  if(!cfg?.testProfileCloud)throw new Error('config');
+  const response=await fetch(`${cfg.url}/rest/v1/rpc/get_test_profile_backup`,{
+    method:'POST',
+    headers:recoveryHeaders(),
+    body:JSON.stringify({p_profile_id:credentials.id,p_owner_token:credentials.token})
+  });
+  if(!response.ok)throw new Error(`restore-${response.status}`);
+  const rows=await response.json();
+  if(!rows[0])throw new Error('missing');
+  const payload=await decryptPersonalProfile(rows[0],credentials.token);
+  if(payload.id!==credentials.id)throw new Error('identity');
+  return {payload,credentials};
+}
+
+function mergeLatestPersonalProfile(payload,credentials){
+  const sameId=state.profiles.find(n=>state.profileMeta?.[n]?.id===payload.id);
+  const sameName=state.profiles.find(n=>normalizeName(n)===normalizeName(payload.name));
+  const sameNameHasProgress=sameName&&Object.values(state.done[sameName]||{}).some(Boolean);
+  if(sameName&&!sameId&&sameNameHasProgress)throw new Error(`duplicate:${sameName}`);
+  const target=sameId||sameName||payload.name.trim();
+  if(!sameId)state.profiles.push(target);
+  state.profiles=[...new Set(state.profiles)];
+  state.done[target]=Object.fromEntries(payload.done.map(key=>[key,true]));
+  state.groups[target]=payload.group;
+  state.profileMeta[target]={id:credentials.id,token:credentials.token};
+  state.active=target;
+  store();
+  profiles();
+  render();
+  return target;
+}
+
+async function restoreLatestPersonalProfile(code){
+  $('#personalRestoreStatus').textContent='Der neueste Profilstand wird aus der Test-Cloud geladen …';
+  try{
+    const {payload,credentials}=await fetchLatestPersonalProfile(code);
+    const target=mergeLatestPersonalProfile(payload,credentials);
+    $('#restoreProfileDialog').close();
+    $('#profileDialog').close();
+    alert(`${target} wurde mit den neuesten gesicherten Häkchen wiederhergestellt.`);
+  }catch(error){
+    if(String(error.message).startsWith('duplicate:'))return alert(`${error.message.slice(10)} ist bereits als anderes Profil vorhanden. Es wurde keine Dublette angelegt.`);
+    if(code.trim().startsWith('BFP1.')){
+      $('#personalRestoreStatus').textContent='Noch kein neuer Test-Cloudstand gefunden. Der im alten QR gespeicherte Stand wird verwendet.';
+      return restorePersonalProfile(code);
+    }
+    $('#personalRestoreStatus').textContent='Die Test-Cloud ist noch nicht eingerichtet oder der Code wurde nicht gefunden.';
+    alert('Der aktuelle Profilstand konnte nicht geladen werden. Bitte Test-Cloud-SQL prüfen und erneut versuchen.');
+  }
+}
+
+function loadQrReaderLibrary(){
+  if(window.jsQR)return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-qr-reader-library]');
+    if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return;}
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    script.crossOrigin='anonymous';
+    script.referrerPolicy='no-referrer';
+    script.dataset.qrReaderLibrary='';
+    script.onload=resolve;
+    script.onerror=reject;
+    document.head.append(script);
+  });
+}
+
+async function readQrFromImage(file){
+  await loadQrReaderLibrary();
+  const image=new Image(),url=URL.createObjectURL(file);
+  try{
+    image.src=url;
+    await image.decode();
+    const max=1800,scale=Math.min(1,max/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+    canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+    const context=canvas.getContext('2d',{willReadFrequently:true});
+    context.drawImage(image,0,0,canvas.width,canvas.height);
+    const pixels=context.getImageData(0,0,canvas.width,canvas.height);
+    return window.jsQR(pixels.data,pixels.width,pixels.height,{inversionAttempts:'attemptBoth'})?.data||'';
+  }finally{URL.revokeObjectURL(url);}
+}
+
+function recoveryCodeFromQrValue(value){
+  const text=value.trim();
+  if(text.startsWith('BFP1.')||text.startsWith('BFP2.'))return text;
+  try{
+    const url=new URL(text);
+    return new URLSearchParams(url.hash.slice(1)).get('restore')||'';
+  }catch{return '';}
+}
+
+const personalProfileBackupStatus=document.createElement('small');
+personalProfileBackupStatus.id='personalProfileBackupStatus';
+personalProfileBackupStatus.textContent='Persönliche Test-Cloud-Sicherung wird nach Änderungen automatisch aktualisiert.';
+recoveryActions.append(personalProfileBackupStatus);
+
+$('#personalRecoveryDialog p').innerHTML='Dieser stabile Code gehört zu <strong id="recoveryProfileName"></strong>. Er lädt beim Wiederherstellen automatisch den neuesten verschlüsselten Profilstand.';
+$('#personalRecoveryStatus').textContent='Der QR-Link nutzt ein privates URL-Fragment und wird nicht an GitHub übertragen. Fotos sind nicht enthalten.';
+$('#personalRestoreInput').placeholder='BFP2.…';
+const scanCameraButton=document.createElement('button');
+scanCameraButton.id='scanPersonalQrCamera';
+scanCameraButton.type='button';
+scanCameraButton.textContent='📷 QR fotografieren';
+const scanGalleryButton=document.createElement('button');
+scanGalleryButton.id='scanPersonalQrGallery';
+scanGalleryButton.type='button';
+scanGalleryButton.textContent='🖼️ QR aus Galerie wählen';
+const scanCameraInput=document.createElement('input');
+scanCameraInput.id='personalQrCameraInput';
+scanCameraInput.type='file';
+scanCameraInput.accept='image/*';
+scanCameraInput.setAttribute('capture','environment');
+scanCameraInput.hidden=true;
+const scanGalleryInput=document.createElement('input');
+scanGalleryInput.id='personalQrGalleryInput';
+scanGalleryInput.type='file';
+scanGalleryInput.accept='image/*';
+scanGalleryInput.hidden=true;
+const restoreStatus=document.createElement('small');
+restoreStatus.id='personalRestoreStatus';
+restoreStatus.textContent='QR fotografieren, aus der Galerie wählen oder den Textcode einfügen.';
+$('#confirmPersonalRestore').before(scanCameraButton,scanGalleryButton,scanCameraInput,scanGalleryInput,restoreStatus);
+
+$('#showPersonalRecovery').onclick=async()=>{
+  currentPersonalCode=createCloudRecoveryCode(state.active);
+  $('#recoveryProfileName').textContent=state.active;
+  $('#personalRecoveryCode').value=currentPersonalCode;
+  $('#personalQr').replaceChildren();
+  recoveryDialog.showModal();
+  try{await syncPersonalProfileToTestCloud(state.active,{showStatus:true});}
+  catch{$('#personalProfileBackupStatus').textContent='Test-Cloud noch nicht eingerichtet. Bitte zuerst test-profile-recovery.sql ausführen.';}
+  const restoreUrl=`${location.origin}${location.pathname}#restore=${encodeURIComponent(currentPersonalCode)}`;
+  try{
+    await loadQrLibrary();
+    new QRCode($('#personalQr'),{text:restoreUrl,width:210,height:210,colorDark:'#571018',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+  }catch{$('#personalQr').textContent='QR-Code konnte offline nicht geladen werden. Der Textcode kann weiterhin kopiert werden.';}
+};
+
+$('#confirmPersonalRestore').onclick=()=>restoreLatestPersonalProfile($('#personalRestoreInput').value);
+scanCameraButton.onclick=()=>scanCameraInput.click();
+scanGalleryButton.onclick=()=>scanGalleryInput.click();
+const handlePersonalQrImage=async input=>{
+  const file=input.files?.[0];
+  if(!file)return;
+  $('#personalRestoreStatus').textContent='QR-Code wird gelesen …';
+  try{
+    const value=await readQrFromImage(file),code=recoveryCodeFromQrValue(value);
+    if(!code)throw new Error('not-found');
+    $('#personalRestoreInput').value=code;
+    $('#personalRestoreStatus').textContent='QR-Code erkannt. Jetzt „Profil wiederherstellen“ drücken.';
+  }catch{$('#personalRestoreStatus').textContent='Auf diesem Bild wurde kein gültiger Basketball-Fitness-QR-Code gefunden.';}
+  finally{input.value='';}
+};
+scanCameraInput.onchange=()=>handlePersonalQrImage(scanCameraInput);
+scanGalleryInput.onchange=()=>handlePersonalQrImage(scanGalleryInput);
+
+schedulePersonalCloudSync();
