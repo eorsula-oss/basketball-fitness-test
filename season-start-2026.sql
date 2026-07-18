@@ -1,12 +1,7 @@
--- EINMALIG vor dem offiziellen Start ausführen.
--- 1) Setzt ausschließlich die Ranglistenpunkte auf 0.
--- 2) Richtet verschlüsselte tägliche Backups mit sieben Tagen Aufbewahrung ein.
+-- Richtet ausschließlich verschlüsselte tägliche Backups mit sieben Tagen Aufbewahrung ein.
+-- Vorhandene Ranglistenpunkte, Profile und Fortschritte werden nicht verändert.
 
 begin;
-
-update public.fitness_rankings
-set total_points = 0,
-    updated_at = now();
 
 create table if not exists public.fitness_backup_history (
   backup_id uuid not null,
