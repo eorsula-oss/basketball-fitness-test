@@ -1,15 +1,10 @@
 {
-  "version": 19,
+  "version": 17,
   "title": "Neu in Basketball Fitness",
   "changes": [
     "Alle bereits eingetragenen Häkchen und Punkte bleiben erhalten. Beim Update wird kein Fortschritt zurückgesetzt.",
     "Das Training beginnt bereits am Samstag, 18. Juli 2026, und läuft bis Dienstag, 1. September 2026.",
     "Aufgaben können nur für den heutigen Tag oder rückwirkend abgehakt werden. Zukünftige Tage sind sichtbar, aber noch gesperrt.",
-    "Der persönliche QR-Code ist jetzt dauerhaft: Derselbe Code lädt immer den neuesten verschlüsselt gesicherten Profilstand mit den aktuellen Häkchen und Punkten.",
-    "Bereits mit der vorherigen Testversion gespeicherte persönliche QR-Codes werden weiterhin erkannt und nutzen nach der ersten neuen Sicherung ebenfalls den aktuellen Cloudstand.",
-    "QR-Codes können direkt in der App mit der Kamera fotografiert oder aus der Galerie ausgewählt werden.",
-    "Beim Anlegen eines namensgleichen Profils erscheint eine Dublettenwarnung; über „Vorhandenes Profil wiederherstellen“ kann stattdessen der persönliche Code verwendet werden.",
-    "Die Navigation unterbricht auf Mobilgeräten keine langen Ranglisten mehr.",
-    "Persönliche Wiederherstellungscodes bitte privat aufbewahren. Fotos bleiben nur auf dem ursprünglichen Gerät."
+    "Bitte den Wiederherstellungscode aus den Einstellungen sicher aufbewahren. Er wird benötigt, wenn die App auf einem neuen Gerät wiederhergestellt werden soll."
   ]
 }
