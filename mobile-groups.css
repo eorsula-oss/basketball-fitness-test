@@ -11,6 +11,13 @@
 .profile-row button{display:flex;align-items:center;gap:8px;text-align:left}
 .profile-row button span{display:grid}
 .profile-row small{font-size:10px;color:inherit;opacity:.7}
+.profile-recovery-actions{display:grid;gap:8px;padding:12px;background:#fff6f6;border:1px solid #f1d3d6;border-radius:14px}
+.profile-recovery-actions h3{margin:0 0 2px;font-size:15px;color:#571018}
+.profile-recovery-actions button{background:#f8dfe1}
+.recovery-form textarea{width:100%;min-height:88px;padding:10px;border:1px solid #e2c7c9;border-radius:10px;resize:vertical;font:12px ui-monospace,SFMono-Regular,Consolas,monospace}
+.personal-qr{display:grid;place-items:center;min-height:226px;padding:8px;border:1px solid #f1d3d6;border-radius:14px;background:#fff;text-align:center;font-size:13px;color:#765b5d}
+.personal-qr img,.personal-qr canvas{max-width:210px;width:100%;height:auto}
+.recovery-form>p{font-size:14px;line-height:1.4}
 
 @media(max-width:480px){
   body{padding-bottom:0}
