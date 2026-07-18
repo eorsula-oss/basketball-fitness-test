@@ -1,9 +1,12 @@
 {
-  "version": 15,
+  "version": 16,
   "title": "Neu in Basketball Fitness",
   "changes": [
-    "Fortschritt eines Kindes wird jetzt lokal und in der globalen Rangliste zuverlässig auf 0 gesetzt.",
-    "Das Zurücksetzen ist durch eine Sicherheitsabfrage und den PIN 2009 geschützt.",
-    "Profile, Gruppen, Fotos und der Fortschritt anderer Kinder bleiben dabei unverändert."
+    "Zum offiziellen Start wurde der bisherige Test-Fortschritt einmalig zurückgesetzt. Alle beginnen wieder mit 0 Punkten; Profile, Gruppen und Fotos bleiben erhalten.",
+    "Das Training kann bereits am Sonntag, 19. Juli 2026, beginnen und läuft bis Dienstag, 1. September 2026.",
+    "Aufgaben können nur für den heutigen Tag oder rückwirkend abgehakt werden. Zukünftige Tage sind sichtbar, aber noch gesperrt.",
+    "Alte Cloud-Sicherungen können keine Testpunkte aus der Zeit vor dem Saison-Reset zurückbringen.",
+    "Profile, Gruppen und Fortschritt werden täglich verschlüsselt gesichert. Sieben Tagesstände bleiben erhalten und können in den Einstellungen ausgewählt werden; Fotos bleiben weiterhin nur auf dem Gerät.",
+    "Bitte den Wiederherstellungscode aus den Einstellungen sicher aufbewahren. Er wird benötigt, wenn die App auf einem neuen Gerät wiederhergestellt werden soll."
   ]
 }
