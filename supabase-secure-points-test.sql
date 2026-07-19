@@ -26,8 +26,17 @@ create table if not exists public.fitness_completions (
   primary key (profile_id, task_date, exercise_id)
 );
 
+-- Nur hier eingetragene, in Supabase Auth angemeldete Trainerkonten
+-- duerfen die detaillierten Trainingsdaten lesen.
+create table if not exists private.fitness_trainers (
+  email text primary key,
+  created_at timestamptz not null default now(),
+  check (email = lower(trim(email)) and char_length(email) between 3 and 254)
+);
+
 alter table public.fitness_rankings enable row level security;
 alter table public.fitness_completions enable row level security;
+alter table private.fitness_trainers enable row level security;
 
 drop policy if exists "rankings are public" on public.fitness_rankings;
 create policy "rankings are public"
@@ -256,6 +265,54 @@ begin
 end
 $$;
 
+create or replace function public.get_fitness_daily_report(
+  p_report_date date
+)
+returns table (
+  profile_id uuid,
+  display_name text,
+  group_name text,
+  training_date date,
+  exercise_id smallint,
+  points smallint,
+  completed_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  trainer_email text := lower(coalesce(auth.jwt() ->> 'email',''));
+begin
+  if coalesce(auth.role(),'') <> 'authenticated'
+     or not exists (
+       select 1 from private.fitness_trainers t where t.email = trainer_email
+     ) then
+    raise exception 'Dieser Zugang ist nicht als Trainer freigeschaltet';
+  end if;
+
+  if p_report_date < date '2026-07-18'
+     or p_report_date > date '2026-09-01' then
+    raise exception 'Datum liegt ausserhalb des Trainingszeitraums';
+  end if;
+
+  return query
+  select
+    r.profile_id,
+    r.display_name,
+    r.group_name,
+    p_report_date,
+    c.exercise_id,
+    c.points,
+    c.completed_at
+  from public.fitness_rankings r
+  left join public.fitness_completions c
+    on c.profile_id = r.profile_id
+   and c.task_date = p_report_date
+  order by r.group_name, lower(r.display_name), c.exercise_id;
+end
+$$;
+
 create or replace function public.delete_fitness_ranking(
   p_profile_id uuid,
   p_owner_token text
@@ -275,6 +332,7 @@ $$;
 drop function if exists public.upsert_fitness_ranking(uuid,text,text,text,integer);
 
 revoke all on schema private from public, anon, authenticated;
+revoke all on table private.fitness_trainers from public, anon, authenticated;
 revoke all on function private.fitness_exercise_points(integer) from public, anon, authenticated;
 revoke all on function private.assert_fitness_completion(date,integer) from public, anon, authenticated;
 revoke all on function private.ensure_fitness_profile(uuid,text,text,text) from public, anon, authenticated;
@@ -282,13 +340,16 @@ revoke all on function private.refresh_fitness_total(uuid) from public, anon, au
 revoke all on function public.set_fitness_completion(uuid,text,text,text,date,integer,boolean) from public;
 revoke all on function public.sync_fitness_completions(uuid,text,text,text,jsonb) from public;
 revoke all on function public.delete_fitness_ranking(uuid,text) from public;
+revoke all on function public.get_fitness_daily_report(date) from public;
 revoke all on function public.set_fitness_completion(uuid,text,text,text,date,integer,boolean) from anon, authenticated;
 revoke all on function public.sync_fitness_completions(uuid,text,text,text,jsonb) from anon, authenticated;
 revoke all on function public.delete_fitness_ranking(uuid,text) from anon, authenticated;
+revoke all on function public.get_fitness_daily_report(date) from anon, authenticated;
 
 grant execute on function public.set_fitness_completion(uuid,text,text,text,date,integer,boolean) to anon;
 grant execute on function public.sync_fitness_completions(uuid,text,text,text,jsonb) to anon;
 grant execute on function public.delete_fitness_ranking(uuid,text) to anon;
+grant execute on function public.get_fitness_daily_report(date) to authenticated;
 
 commit;
 

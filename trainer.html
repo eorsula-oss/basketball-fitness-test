@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#8f1721">
+  <link rel="icon" href="icon.svg">
+  <link rel="stylesheet" href="trainer.css">
+  <title>Trainerübersicht · Basketball Fitness</title>
+</head>
+<body>
+  <header>
+    <img src="bc-pesch-logo.png" alt="BC Pesch">
+    <div><small>GESCHÜTZTER TESTBEREICH</small><h1>Trainerübersicht</h1></div>
+  </header>
+  <main>
+    <section id="connectionNotice" class="notice" hidden></section>
+    <section id="loginPanel" class="card login-card">
+      <h2>Trainer-Anmeldung</h2>
+      <p>Die Detaildaten sind nur für ausdrücklich freigeschaltete Trainerkonten sichtbar.</p>
+      <form id="loginForm">
+        <label>E-Mail<input id="email" type="email" autocomplete="username" required></label>
+        <label>Passwort<input id="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Sicher anmelden</button>
+      </form>
+      <p id="loginStatus" class="status" role="status"></p>
+    </section>
+    <section id="reportPanel" hidden>
+      <div class="toolbar card">
+        <label>Trainingstag<input id="reportDate" type="date" min="2026-07-18" max="2026-09-01"></label>
+        <button id="loadReport" type="button">Übersicht laden</button>
+        <button id="downloadCsv" type="button">CSV herunterladen</button>
+        <button id="printReport" type="button" class="secondary">Drucken / PDF</button>
+        <button id="logout" type="button" class="quiet">Abmelden</button>
+      </div>
+      <section class="card heading">
+        <div><small>TAGESÜBERSICHT</small><h2 id="reportTitle">–</h2></div>
+        <strong id="reportTotal">0 Punkte</strong>
+      </section>
+      <section id="summary" class="summary"></section>
+      <section class="card table-card">
+        <table>
+          <thead><tr><th>Gruppe</th><th>Name</th><th>Aufgabe</th><th>Leistung</th><th>Punkte</th><th>Eingetragen</th></tr></thead>
+          <tbody id="reportRows"><tr><td colspan="6">Noch keine Übersicht geladen.</td></tr></tbody>
+        </table>
+      </section>
+      <p class="explanation">„Trainingstag“ ist der ausgewählte Tag. „Eingetragen“ zeigt, wann das Häkchen gespeichert wurde; nachgetragene Aufgaben können daher eine spätere Uhrzeit haben.</p>
+    </section>
+  </main>
+  <script src="supabase-config.js"></script>
+  <script src="trainer.js"></script>
+</body>
+</html>

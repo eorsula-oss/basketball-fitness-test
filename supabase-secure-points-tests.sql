@@ -98,6 +98,45 @@ end
 $$;
 
 do $$
+declare
+  report_rows integer;
+begin
+  perform set_config(
+    'request.jwt.claims',
+    '{"role":"authenticated","email":"nicht-freigegeben@example.invalid"}',
+    true
+  );
+  begin
+    perform * from public.get_fitness_daily_report(date '2026-07-18');
+    raise exception 'Test fehlgeschlagen: nicht freigegebener Nutzer durfte Trainerdaten lesen';
+  exception
+    when others then
+      if sqlerrm = 'Test fehlgeschlagen: nicht freigegebener Nutzer durfte Trainerdaten lesen' then
+        raise;
+      end if;
+  end;
+
+  insert into private.fitness_trainers (email)
+  values ('trainer-test@example.invalid');
+  perform set_config(
+    'request.jwt.claims',
+    '{"role":"authenticated","email":"trainer-test@example.invalid"}',
+    true
+  );
+
+  select count(*) into report_rows
+  from public.get_fitness_daily_report(date '2026-07-18') r
+  where r.profile_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    and r.exercise_id = 1;
+  if report_rows <> 1 then
+    raise exception 'Test fehlgeschlagen: freigegebener Trainer erhielt keine Tagesdaten';
+  end if;
+
+  perform set_config('request.jwt.claims','{}',true);
+end
+$$;
+
+do $$
 begin
   begin
     set local role anon;

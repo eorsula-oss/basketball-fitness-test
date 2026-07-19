@@ -22,6 +22,16 @@ Die Test-App basiert auf Produktionsversion 17. Bewusst anders sind nur:
 4. Danach `supabase-secure-points-test.sql` ausführen.
 5. Danach `supabase-secure-points-tests.sql` ausführen. Erwartete Meldung: `Alle Sicherheitstests erfolgreich; Testdaten wurden verworfen.`
 6. Erst nach erfolgreichen SQL-Tests Projekt-URL und Publishable Key in `supabase-config.js` eintragen und `testMode` auf `false` setzen.
+7. Unter `Authentication > Users` ein separates Trainerkonto anlegen.
+8. In `trainer-access-template.sql` die Trainer-E-Mail einsetzen und die Abfrage ausfuehren.
+
+## Geschuetzte Traineruebersicht
+
+`trainer.html` zeigt fuer einen ausgewaehlten Trainingstag alle Profile, erledigten Aufgaben,
+Punkte und den Zeitpunkt der Eintragung. Profile ohne Aufgabe werden ebenfalls aufgefuehrt.
+Die Liste kann als CSV heruntergeladen oder als PDF gedruckt werden. Die Detaildaten sind
+nicht anonym lesbar: Zugriff erhalten nur angemeldete Supabase-Auth-Nutzer, deren E-Mail
+zusaetzlich in `private.fitness_trainers` freigeschaltet wurde.
 
 ## Freigabeablauf
 
