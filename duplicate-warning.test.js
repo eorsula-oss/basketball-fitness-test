@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 
 const source=fs.readFileSync(path.join(__dirname,'enhancements.js'),'utf8');
 
-function runtime({rows=[],promptAnswer=null,confirmAnswer=false,fetchFails=false}={}){
+function runtime({rows=[],promptAnswer=null,confirmAnswer=false,fetchFails=false,testMode=false,search=''}={}){
   const nodes=new Map();
   const node=selector=>{
     if(!nodes.has(selector))nodes.set(selector,{value:'',innerHTML:'',textContent:'',disabled:false,addEventListener(){}});
@@ -14,7 +14,8 @@ function runtime({rows=[],promptAnswer=null,confirmAnswer=false,fetchFails=false
   node('#newProfile').value='Kiala';
   node('#newGroup').value='U12.1';
   const context={
-    window:{BASKETBALL_BACKUP_CONFIG:{url:'https://test.invalid',key:'test-key',testMode:false}},
+    window:{BASKETBALL_BACKUP_CONFIG:{url:'https://test.invalid',key:'test-key',testMode}},
+    location:{search},URLSearchParams,
     state:{profiles:['Vorhanden'],active:'Vorhanden',done:{Vorhanden:{}},photos:{},groups:{Vorhanden:'Sonstige'},profileMeta:{}},
     exercise:[],
     render(){},profiles(){},store(){},$ : node,
@@ -49,6 +50,10 @@ async function run(){
   test=runtime({fetchFails:true,confirmAnswer:true});
   await test.nodes.get('#addProfile').onclick();
   assert.deepEqual(test.context.state.profiles,['Vorhanden','Kiala'],'Offline-Anlegen bleibt nach Bestaetigung moeglich');
+
+  test=runtime({testMode:true,search:'?duplicateTestName=Kiala&duplicateTestGroup=U12.1'});
+  await test.nodes.get('#addProfile').onclick();
+  assert.deepEqual(test.context.state.profiles,['Vorhanden'],'Der Testmodus muss die Cloud-Dublette ohne Produktionszugriff simulieren');
 }
 
-run().then(()=>console.log('Dublettenwarnung: 5 Tests erfolgreich.'));
+run().then(()=>console.log('Dublettenwarnung: 6 Tests erfolgreich.'));
