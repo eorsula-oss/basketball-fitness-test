@@ -1,5 +1,5 @@
 {
-  "version": 20,
+  "version": 21,
   "title": "Herbstferien 2026 – sicherer Saisonstart",
   "changes": [
     "Die Herbstferien-Challenge läuft vom 17. bis 31. Oktober 2026.",
@@ -7,8 +7,7 @@
     "Platzhalterprofile „Kind 1“ werden entfernt und können nicht erneut angelegt werden.",
     "Neue Profile werden vor dem Anlegen auf mögliche Dubletten geprüft.",
     "Profilnamen werden sicher dargestellt und Ranglistenpunkte können serverseitig nicht über das Tagesmaximum hinaus erhöht werden.",
-    "Die Aktualisierungsmeldung erscheint nur noch bei einer tatsächlich verfügbaren neuen Version.",
+    "Die App lädt nach einer Aktualisierung zuverlässig alle Dateien derselben Version; alte Sommeransichten werden nicht mehr mit neuen Inhalten vermischt.",
     "Cloud-Wiederherstellungen übernehmen Profile, aber keine Punkte aus der Sommersaison. Bitte den Wiederherstellungscode weiterhin sicher aufbewahren."
   ]
 }
-
